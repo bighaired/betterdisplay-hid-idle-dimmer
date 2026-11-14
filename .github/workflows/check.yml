@@ -1,0 +1,26 @@
+name: Build and syntax checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bash syntax
+        run: |
+          for f in *.sh; do bash -n "$f"; done
+      - name: Compile CoreGraphics HID helper
+        run: |
+          SDK="$(xcrun --sdk macosx --show-sdk-path)"
+          xcrun --sdk macosx clang -isysroot "$SDK" -O2 -Wall -Wextra \
+            physical_idle_query.c -framework CoreGraphics -o /tmp/physical_idle_query
+      - name: Lua syntax (if installed)
+        run: |
+          if command -v luac >/dev/null 2>&1; then
+            luac -p betterdisplay_idle_dim.lua
+          else
+            echo 'luac unavailable on runner; macOS runtime verification remains manual'
+          fi
