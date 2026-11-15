@@ -1,5 +1,5 @@
 #!/bin/bash
-# Standalone macOS installer. Does not use sudo or alter display brightness.
+# v2.3 software-only macOS installer. No sudo or brightness writes.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 CONF="$HOME/.hammerspoon"
@@ -13,6 +13,12 @@ SDK="$(xcrun --sdk macosx --show-sdk-path)" || { echo 'macOS SDK not found. Inst
 [[ -f "$SDK/System/Library/Frameworks/CoreGraphics.framework/Headers/CoreGraphics.h" ]] || { echo 'CoreGraphics.h missing from macOS SDK.' >&2; exit 1; }
 
 mkdir -p "$CONF"
+# Refuse migration while an older dimmer has an active brightness snapshot.
+if [[ -f "$CONF/betterdisplay_idle_dim.snapshot" ]]; then
+  echo "Existing dimmer brightness snapshot found. Restore with Ctrl+Option+Cmd+R," >&2
+  echo "then confirm the snapshot is gone before installing." >&2
+  exit 1
+fi
 TMP="$(mktemp "$CONF/.physical_idle_query.XXXXXXXX")"
 trap 'rm -f "$TMP"' EXIT
 xcrun --sdk macosx clang -isysroot "$SDK" -O2 -Wall -Wextra \
@@ -22,8 +28,8 @@ chmod 755 "$TMP"
 
 # Validate both displays before touching Hammerspoon files.
 for selector in -displayWithMainStatus -displayWithNonMainStatus; do
-  value="$("$BD" get "$selector" -combinedBrightness)" || { echo "Brightness query failed: $selector" >&2; exit 1; }
-  [[ "$value" =~ ^[0-9]+([.][0-9]+)?$ ]] || { echo "Invalid combined brightness: $value" >&2; exit 1; }
+  value="$("$BD" get "$selector" -softwareBrightness)" || { echo "Brightness query failed: $selector" >&2; exit 1; }
+  [[ "$value" =~ ^[0-9]+([.][0-9]+)?$ ]] || { echo "Invalid software brightness: $value" >&2; exit 1; }
   echo "$selector: $value"
 done
 
@@ -41,6 +47,6 @@ if ! grep -Fq 'require("betterdisplay_idle_dim")' "$CONF/init.lua" && \
 fi
 printf '\nInstalled. Existing files were backed up using timestamp %s.\n' "$stamp"
 echo 'Next: Hammerspoon menu -> Reload Config.'
-echo 'Test FIRST with IDLE_SECONDS=15 and DIM_LEVEL=0.05 before enabling 600/0.'
+echo 'v2.3: 600 seconds idle, 0% SOFTWARE brightness; hardware/DDC brightness is not changed.'
 echo 'Emergency: Control + Option + Command + R (restores brightness; 30 minute pause).'
 echo 'Disable: bash disable.sh; uninstall: bash uninstall.sh (see README).'

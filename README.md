@@ -23,10 +23,16 @@ This small open-source utility combines [BetterDisplay](https://github.com/wayda
 > [!IMPORTANT]
 > **This is not a macOS security lock bypass.** It does not unlock a locked Mac, bypass passwords, suppress privacy/security overlays, or guarantee uninterrupted Codex Computer Use. It can *potentially* help with workflows disrupted by **display sleep or idle-triggered screen behavior**, because the Mac keeps a running graphical desktop while its monitors are dimmed. Actual session-locking rules are separate.
 
+## Version 2.3 — software-only dimming
+
+**Designed for shared monitors connected to both a Mac and a Windows PC.** Version 2.3 writes *only* BetterDisplay `softwareBrightness`. It does not change hardware/DDC brightness, so the image shown from Windows should keep its previous brightness. LCD backlights may still glow even when the Mac image is entirely black. Screen Sharing or capture software may see the software overlay.
+
+**Defaults:** 600 seconds idle → 0% software brightness; physical input → restore each monitor's saved software brightness. If upgrading from an earlier combined-brightness version, restore the old brightness before installing (the installer refuses migration while a previous snapshot exists).
+
 ## What it does
 
-- ⏱ **Idle timer:** after 10 minutes without detected hardware-oriented input, dim both displays (after initial setup and testing).
-- 🌑 **Deep dimming:** BetterDisplay **Combined Brightness** blends hardware adjustment and software dimming to reach very dark levels without deliberately putting the monitors to sleep.
+- ⏱ **Idle timer:** after 10 minutes without detected hardware-oriented input, dim both Mac images.
+- 🌑 **Deep dimming:** BetterDisplay **Software Brightness** darkens only the Mac-side image without writing hardware/DDC brightness.
 - 🔆 **Individual recovery:** saves the brightness of the main and non-main display separately, then restores both when you interact.
 - 🖱 **HID-oriented detection:** often ignores events generated in a software session, such as automation by Codex. **Not guaranteed for all injected events or virtual HID drivers.**
 - 🖥 **Screen Sharing:** best-effort detection of an established Apple Screen Sharing / VNC TCP/5900 connection.
@@ -53,7 +59,7 @@ flowchart TD
 ## Requirements
 
 - **macOS** with two connected displays (one main, one non-main).
-- **BetterDisplay** installed at `/Applications/BetterDisplay.app`, with **CLI access enabled** and **Combined brightness** configured for each display; some features/licensing depend on the BetterDisplay version.
+- **BetterDisplay** installed at `/Applications/BetterDisplay.app`, with **CLI access enabled** and **software-based video adjustments** configured for each display; some features/licensing depend on the BetterDisplay version.
 - **Hammerspoon**, running with Accessibility permission and preferably set to **Launch at login**.
 - **Apple Command Line Tools**, for `clang` and the macOS SDK (`xcode-select --install`).
 - The standard local, logged-in macOS graphical session. No `sudo` is required by the installer.
@@ -62,7 +68,7 @@ This release assumes exactly two active physical monitors. Do not use it as-is f
 
 ## Quick start
 
-1. Install and launch [BetterDisplay](https://github.com/waydabber/BetterDisplay) and [Hammerspoon](https://www.hammerspoon.org/). Grant Hammerspoon **Accessibility** access. In BetterDisplay, enable **Combined brightness** for *both* monitors and make sure the CLI commands work.
+1. Install and launch [BetterDisplay](https://github.com/waydabber/BetterDisplay) and [Hammerspoon](https://www.hammerspoon.org/). Grant Hammerspoon **Accessibility** access. In BetterDisplay, enable **software-based video adjustments** for *both* monitors and verify that the `softwareBrightness` CLI commands work.
 2. Install Apple's CLI tools if necessary:
 
    ```bash
@@ -78,22 +84,24 @@ This release assumes exactly two active physical monitors. Do not use it as-is f
    ```
 
 4. In the Hammerspoon menu choose **Reload Config**. The installer makes dated backups of the previous `init.lua`, module and HID helper, then installs the current files without replacing other `init.lua` configuration.
-5. **First run is intentionally safe:** 15 seconds idle, **5%** combined brightness. Try it without touching mouse/keyboard, then move a **physical** mouse. Confirm **both** displays recover normally. Test with the actual Codex Computer Use events and your actual remote-access setup before changing the defaults.
-6. After successful tests, edit the top of `~/.hammerspoon/betterdisplay_idle_dim.lua`:
+5. **Default configuration is already 10 minutes / 0% software brightness.** Before leaving the Mac unattended, confirm both screens restore correctly from a physical mouse or keyboard event. The emergency shortcut is **Ctrl + Option + Cmd + R**.
+6. To upgrade from v1.0 / combined brightness, use the emergency shortcut in your old configuration before installing. The installer creates dated backups and refuses a migration while an active brightness snapshot exists. Test actual Codex Computer Use events and your remote-access setup separately.
 
-   ```lua
-   local IDLE_SECONDS = 600  -- 10 minutes
-   local DIM_LEVEL = 0.0     -- 0% combined brightness
-   ```
+Configuration values in `~/.hammerspoon/betterdisplay_idle_dim.lua`:
 
-   Then **Reload Config** again.
+```lua
+local IDLE_SECONDS = 600  -- 10 minutes
+local DIM_LEVEL = 0.0     -- 0% software brightness (Mac image)
+```
+
+### Verify BetterDisplay CLI
 
 ### Verify BetterDisplay CLI
 
 ```bash
 BD=/Applications/BetterDisplay.app/Contents/MacOS/BetterDisplay
-"$BD" get -displayWithMainStatus -combinedBrightness
-"$BD" get -displayWithNonMainStatus -combinedBrightness
+"$BD" get -displayWithMainStatus -softwareBrightness
+"$BD" get -displayWithNonMainStatus -softwareBrightness
 ~/.hammerspoon/physical_idle_query --both
 ```
 
@@ -162,7 +170,7 @@ If using a customized `init.lua`, inspect the dated `init.lua.backup-uninstall-*
 bash restore-brightness.sh
 ```
 
-If a brightness snapshot exists, the script attempts to restore both saved values. Otherwise it uses a **60% fallback on both displays**; only use it when recovery is necessary. If the regular dimmer is still active, disable it and **Reload Config** afterward.
+If a brightness snapshot exists, the script attempts to restore both saved values. Without a snapshot it sets **software brightness to 100% on both displays** (legacy combined snapshots are restored using their saved mode); only use it when recovery is necessary. If the regular dimmer is still active, disable it and **Reload Config** afterward.
 
 ## Mac + Codex: a potential workaround, not a lock bypass
 
@@ -182,7 +190,7 @@ Some Mac automation workflows encounter problems when the display sleeps or the 
 - **Remote capture may see a dark image.** Test with your own Screen Sharing and Computer Use setup.
 - **Accessibility and BetterDisplay privileges** are required; review third-party app permissions yourself.
 - **Only two displays** are supported by the current main/non-main selectors.
-- **No universal hardware validation.** The underlying v2.2 workflow was exercised on one dual-monitor setup; this standalone public packaging has not been tested across different macOS releases and monitors.
+- **Limited hardware validation.** Software-only v2.3 has been observed working on one ASUS VG2791R + Acer XZ342CU V3 two-monitor Mac setup; other macOS versions and displays have not been comprehensively tested.
 
 ## Files
 

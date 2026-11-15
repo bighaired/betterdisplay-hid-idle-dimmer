@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.3.0 — 2026-11-15
+
+- **Software-only brightness:** dim using `softwareBrightness` instead of `combinedBrightness`; never write DDC/hardware brightness from the normal dimmer.
+- Default to **600 seconds / 0% software brightness**, preserving and restoring each display's original software level.
+- Keep physically shared monitors at their existing hardware brightness, avoiding unwanted dimming of a selected Windows input.
+- Read-only hardware brightness diagnostics before and after dimming.
+- New software-specific snapshot key and mode-tagged recovery snapshot, with backwards-compatible emergency restoration for legacy combined snapshots.
+- Installer checks for an active snapshot before upgrading; existing disable, enable, uninstall and emergency shortcuts remain supported.
+- Update English and Russian documentation, including Codex caveats and backlight glow behavior.
+
 ## 1.0.0 — 2026-11-14
 
 First standalone public package, based on the previously iterated **v2.2** Hammerspoon module.

@@ -1,10 +1,10 @@
--- BetterDisplay dual-monitor physical-input idle dimmer v1.0.0 (public release, based on v2.2 2026-11-14)
--- Preserves per-monitor combined brightness. No screen lock or screensaver.
+-- BetterDisplay dual-monitor physical-input idle dimmer v2.3.0 (software-only public release)
+-- Preserves per-monitor SOFTWARE brightness. Never writes hardware/DDC brightness.
 -- Dedicated native HID timer distinguishes many synthetic events, but not all automation methods.
 -- Improvements: retained timers, robust activity detection, wake restoration, watchdog, on-disk log.
 
-local IDLE_SECONDS = 15  -- first-run safety test; change to 600 (10 minutes) after validation
-local DIM_LEVEL = 0.05  -- first-run safety test; change to 0.0 after validation
+local IDLE_SECONDS = 600  -- 10 minutes
+local DIM_LEVEL = 0.0  -- zero percent SOFTWARE brightness (Mac image only)
 local POLL_SECONDS = 2
 local REMOTE_POLL_SECONDS = 10
 local MANUAL_HOLD_SECONDS = 1800
@@ -20,7 +20,7 @@ local HID_QUERY = HOME .. '/.hammerspoon/physical_idle_query'
 local LOG_FILE = HOME .. '/.hammerspoon/betterdisplay_idle_dim.log'
 local SNAPSHOT_FILE = HOME .. '/.hammerspoon/betterdisplay_idle_dim.snapshot'
 local DISABLE_FILE = HOME .. '/.hammerspoon/.betterdisplay_idle_dim.disabled'
-local SNAPSHOT_KEY = 'betterdisplay_idle_dim_saved_brightness_v1' -- same as v2.1
+local SNAPSHOT_KEY = 'betterdisplay_idle_dim_saved_software_v23' -- separate from legacy combined snapshot
 local log = hs.logger.new('BD-HIDDim', 'info')
 local screens = {
   {key = 'main', selector = '-displayWithMainStatus'},
@@ -44,8 +44,8 @@ local function writeLog(level, message)
   if f then f:write(entry, '\n'); f:close() end
 end
 
-local function runBrightness(operation, selector, value)
-  local cmd = string.format('%q %s %s -combinedBrightness', BETTERDISPLAY, operation, selector)
+local function runBrightness(operation, selector, value, feature)
+  local cmd = string.format('%q %s %s -%s', BETTERDISPLAY, operation, selector, feature or 'softwareBrightness')
   if value ~= nil then cmd = cmd .. '=' .. string.format('%.4f', value) end
   local output, ok = hs.execute(cmd, false)
   if not ok then
@@ -67,7 +67,22 @@ local function readBrightness(selector)
 end
 
 local function writeBrightness(selector, value)
-  return runBrightness('set', selector, value) ~= nil
+  -- All write calls in this module use softwareBrightness only.
+  return runBrightness('set', selector, value, 'softwareBrightness') ~= nil
+end
+
+local function hardwareBrightness(selector)
+  -- Read-only DDC diagnostic: no -hardwareBrightness writes.
+  local output = runBrightness('get', selector, nil, 'hardwareBrightness')
+  if not output then return nil end
+  return tonumber(output:match('^%s*(%d+%.?%d*)%s*$'))
+end
+
+local function logHardwareLevels(phase)
+  local a = hardwareBrightness(screens[1].selector)
+  local b = hardwareBrightness(screens[2].selector)
+  writeLog('INFO', string.format('%s hardware (read-only) main=%s other=%s',
+    phase, tostring(a), tostring(b)))
 end
 
 local function restore(reason)
@@ -109,7 +124,8 @@ local function dim()
     writeLog('ERROR', 'Dimming cancelled: cannot write recovery snapshot: ' .. tostring(err))
     return
   end
-  snapshot:write(string.format('main=%.4f\nother=%.4f\n', levels.main, levels.other))
+  snapshot:write(string.format('mode=software\nmain=%.4f\nother=%.4f\n', levels.main, levels.other))
+  logHardwareLevels('before dim')
   snapshot:close()
   saved = levels
   dimmed = true
@@ -121,7 +137,8 @@ local function dim()
       return
     end
   end
-  writeLog('INFO', string.format('Both monitors dimmed to %.1f%% combined; prior main=%.3f other=%.3f', DIM_LEVEL * 100, levels.main, levels.other))
+  logHardwareLevels('after dim')
+  writeLog('INFO', string.format('Both Mac images dimmed to %.1f%% SOFTWARE only; saved main=%.3f other=%.3f', DIM_LEVEL * 100, levels.main, levels.other))
 end
 
 local function physicalIdleSeconds()
@@ -238,7 +255,7 @@ end
 -- Diagnostic query from Hammerspoon Console: print(BDIdleDimStatus())
 _G.BDIdleDimStatus = function()
   local idle = physicalIdleSeconds()
-  return string.format('v1.0.0 dimmed=%s HID_idle=%s poll_alive=%s watchdog_alive=%s last_poll_age=%.1fs remote=%s manual_hold_remaining=%.0fs log=%s',
+  return string.format('v2.3 SOFTWARE ONLY dimmed=%s HID_idle=%s poll_alive=%s watchdog_alive=%s last_poll_age=%.1fs remote=%s manual_hold_remaining=%.0fs log=%s',
     tostring(dimmed), tostring(idle),
     tostring(_G.BDIdleDimTimer ~= nil and _G.BDIdleDimTimer:running()),
     tostring(_G.BDIdleWatchdogTimer ~= nil and _G.BDIdleWatchdogTimer:running()),
@@ -263,7 +280,7 @@ else
   _G.BDIdleDimTimer = hs.timer.new(POLL_SECONDS, safePoll, true):start()
   _G.BDIdleWatchdogTimer = hs.timer.new(WATCHDOG_SECONDS, watchdog, true):start()
   _G.BDIdleWakeWatcher = hs.caffeinate.watcher.new(onPowerEvent):start()
-  writeLog('INFO', string.format('v1.0.0 started; idle=%ds dim=%.1f%% poll=%ds watchdog=%ds VNC=%s',
+  writeLog('INFO', string.format('v2.3 SOFTWARE ONLY started; idle=%ds dim=%.1f%% poll=%ds watchdog=%ds VNC=%s',
     IDLE_SECONDS, DIM_LEVEL * 100, POLL_SECONDS, WATCHDOG_SECONDS,
     tostring(ENABLE_SCREEN_SHARING_DETECTION)))
 end
