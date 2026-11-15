@@ -96,8 +96,6 @@ local DIM_LEVEL = 0.0     -- 0% software brightness (Mac image)
 
 ### Verify BetterDisplay CLI
 
-### Verify BetterDisplay CLI
-
 ```bash
 BD=/Applications/BetterDisplay.app/Contents/MacOS/BetterDisplay
 "$BD" get -displayWithMainStatus -softwareBrightness
